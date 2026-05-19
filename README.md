@@ -308,28 +308,47 @@ concentration_M,polymer_vector
 
 ## Reproduce the paper experiments
 
-Benchmark scripts live in `src/benchmarks/`. They are separate from the general-use pipeline.
-
-From `src/benchmarks/`:
+Use the consolidated benchmark runner from the repository root:
 
 ```bash
-# Figures 2, 3, 4 benchmark phases
-python experiments.py --phases 1
-python experiments.py --phases 2
-python experiments.py --phases 3
-python make_plots.py
-
-# Figures 5, 6 leakage analysis for cascade n=7 incomplete
-python leakage_compute_all.py --n 7
-python leakage_coffee.py --n 7
-python plot_leakage_figures.py --n 7
+caffeinate -i -s ./run_all_benchmarks.sh </dev/null
 ```
 
-Key result locations:
+or call the Python runner directly:
+
+```bash
+python src/benchmarks/run_benchmarks.py --experiments all
+```
+
+You can also run selected experiments:
+
+```bash
+python src/benchmarks/run_benchmarks.py --experiments 1              # runtime vs k
+python src/benchmarks/run_benchmarks.py --experiments 2              # runtime vs t + Full HB
+python src/benchmarks/run_benchmarks.py --experiments 3              # equilibrium recovery
+python src/benchmarks/run_benchmarks.py --experiments 4              # leakage analysis
+python src/benchmarks/run_benchmarks.py --experiments 1 3            # multiple selected experiments
+```
+
+The four consolidated experiments are:
+
+1. **Runtime vs k** for `linear_cascade_n7` and `damien_n10`. Cascade-7 uses the DP covering fallback and, after `k=25`, tests `k` in increments of 5.
+2. **Runtime vs t** for linear cascades `m=5..9`, binary trees `d=3,4`, and DNA cascades `m=4..7`. For each `(system,t)`, the script probes `k`, records the probe time, runs the best covering enumeration only if the projected time is below 30 minutes, and also runs the Full-HB baseline.
+3. **Equilibrium recovery** for cascade-7 with the first input removed: full P* versus `t=3` and `t=5` at `k=25`, using COFFEE at `1 µM` initial concentration and `-20` binding energy.
+4. **Leakage analysis**: first compare removed inputs `K=1..7`, then compare leakage for different `t` values against full P*. Only polymers above `1 nM` are counted in leakage summaries.
+
+Organized outputs are written to:
 
 ```text
-results/experiments/                  benchmark JSON and Hilbert bases
-results/figures/                      generated paper figures
+results/benchmarks/01_runtime_vs_k/          CSV + one figure per system
+results/benchmarks/02_runtime_by_t/          CSV + one figure per family
+results/benchmarks/03_equilibrium_recovery/  equilibrium error figures and output index
+results/benchmarks/04_leakage/               leakage summaries, CSVs, and figures
+```
+
+The underlying helper scripts also write their detailed outputs to:
+
+```text
 results/leakage/hilbert_basis/        leakage Hilbert-basis files
 results/leakage/coffee/               leakage COFFEE inputs/outputs/CSVs
 results/leakage/analysis/             leakage summaries and plots

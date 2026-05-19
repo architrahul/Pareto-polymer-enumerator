@@ -21,7 +21,7 @@ src/Normaliz/
 **/vectors.txt
 
 results/
-backup/
+backup_results/
 
 AGENTS.md
 .claude/

@@ -728,6 +728,8 @@ def run_covering_sweep(
     best_k         = None
     best_blocks    = None
     probe_summary  = {}  # k -> projected_total or None
+    consecutive_increases = 0
+    last_projected = None
 
     # ------------------------------------------------------------
     # STEP 1: Run base case FIRST if requested
@@ -805,10 +807,32 @@ def run_covering_sweep(
             print(f"  [t={t}] k={k}: projected={projected:.3f}s  "
                   f"(best so far: {best_projected:.3f}s)")
 
+        if last_projected is not None and projected > last_projected:
+            consecutive_increases += 1
+            log.write(
+                f"    k={k}: projected runtime increased "
+                f"({projected:.3f}s > {last_projected:.3f}s); "
+                f"consecutive_increases={consecutive_increases}/3\n"
+            )
+            log.flush()
+        else:
+            consecutive_increases = 0
+        last_projected = projected
+
         if best_projected is None or projected < best_projected:
             best_projected = projected
             best_k         = k
             best_blocks    = blocks
+
+        if consecutive_increases >= 3:
+            msg = (
+                f"  [t={t}] Stopping probe sweep after k={k}: "
+                "projected runtime increased for 3 consecutive k values."
+            )
+            print(msg)
+            log.write(msg + "\n")
+            log.flush()
+            break
 
     # ---- Probe sweep summary ----
     summary_str = {
