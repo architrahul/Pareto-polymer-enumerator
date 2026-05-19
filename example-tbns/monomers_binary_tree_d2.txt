@@ -1,0 +1,26 @@
+# Binary tree depth 2
+leaf1_1 leaf1_2
+leaf2_1 leaf2_2
+leaf3_1 leaf3_2
+leaf4_1 leaf4_2
+leaf1_1 leaf1_2 leaf2_1 leaf2_2 node1_1
+leaf1_1* leaf1_2* leaf2_1* leaf2_2*
+leaf1_2 leaf2_1
+leaf2_2 node1_1 node1_2
+leaf1_2* leaf2_1* leaf2_2* node1_1*
+node1_1* node1_2*
+node1_1 node1_2
+leaf3_1 leaf3_2 leaf4_1 leaf4_2 node2_1
+leaf3_1* leaf3_2* leaf4_1* leaf4_2*
+leaf3_2 leaf4_1
+leaf4_2 node2_1 node2_2
+leaf3_2* leaf4_1* leaf4_2* node2_1*
+node2_1* node2_2*
+node2_1 node2_2
+node1_1 node1_2 node2_1 node2_2 node3_1
+node1_1* node1_2* node2_1* node2_2*
+node1_2 node2_1
+node2_2 node3_1 node3_2
+node1_2* node2_1* node2_2* node3_1*
+node3_1* node3_2*
+node3_1 node3_2

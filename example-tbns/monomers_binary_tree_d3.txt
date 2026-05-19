@@ -1,0 +1,58 @@
+# Binary tree depth 3
+leaf1_1 leaf1_2
+leaf2_1 leaf2_2
+leaf3_1 leaf3_2
+leaf4_1 leaf4_2
+leaf5_1 leaf5_2
+leaf6_1 leaf6_2
+leaf7_1 leaf7_2
+leaf8_1 leaf8_2
+leaf1_1 leaf1_2 leaf2_1 leaf2_2 node1_1
+leaf1_1* leaf1_2* leaf2_1* leaf2_2*
+leaf1_2 leaf2_1
+leaf2_2 node1_1 node1_2
+leaf1_2* leaf2_1* leaf2_2* node1_1*
+node1_1* node1_2*
+node1_1 node1_2
+leaf3_1 leaf3_2 leaf4_1 leaf4_2 node2_1
+leaf3_1* leaf3_2* leaf4_1* leaf4_2*
+leaf3_2 leaf4_1
+leaf4_2 node2_1 node2_2
+leaf3_2* leaf4_1* leaf4_2* node2_1*
+node2_1* node2_2*
+node2_1 node2_2
+leaf5_1 leaf5_2 leaf6_1 leaf6_2 node3_1
+leaf5_1* leaf5_2* leaf6_1* leaf6_2*
+leaf5_2 leaf6_1
+leaf6_2 node3_1 node3_2
+leaf5_2* leaf6_1* leaf6_2* node3_1*
+node3_1* node3_2*
+node3_1 node3_2
+leaf7_1 leaf7_2 leaf8_1 leaf8_2 node4_1
+leaf7_1* leaf7_2* leaf8_1* leaf8_2*
+leaf7_2 leaf8_1
+leaf8_2 node4_1 node4_2
+leaf7_2* leaf8_1* leaf8_2* node4_1*
+node4_1* node4_2*
+node4_1 node4_2
+node1_1 node1_2 node2_1 node2_2 node5_1
+node1_1* node1_2* node2_1* node2_2*
+node1_2 node2_1
+node2_2 node5_1 node5_2
+node1_2* node2_1* node2_2* node5_1*
+node5_1* node5_2*
+node5_1 node5_2
+node3_1 node3_2 node4_1 node4_2 node6_1
+node3_1* node3_2* node4_1* node4_2*
+node3_2 node4_1
+node4_2 node6_1 node6_2
+node3_2* node4_1* node4_2* node6_1*
+node6_1* node6_2*
+node6_1 node6_2
+node5_1 node5_2 node6_1 node6_2 node7_1
+node5_1* node5_2* node6_1* node6_2*
+node5_2 node6_1
+node6_2 node7_1 node7_2
+node5_2* node6_1* node6_2* node7_1*
+node7_1* node7_2*
+node7_1 node7_2

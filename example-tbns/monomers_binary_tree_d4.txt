@@ -1,0 +1,122 @@
+# Binary tree depth 4
+leaf1_1 leaf1_2
+leaf2_1 leaf2_2
+leaf3_1 leaf3_2
+leaf4_1 leaf4_2
+leaf5_1 leaf5_2
+leaf6_1 leaf6_2
+leaf7_1 leaf7_2
+leaf8_1 leaf8_2
+leaf9_1 leaf9_2
+leaf10_1 leaf10_2
+leaf11_1 leaf11_2
+leaf12_1 leaf12_2
+leaf13_1 leaf13_2
+leaf14_1 leaf14_2
+leaf15_1 leaf15_2
+leaf16_1 leaf16_2
+leaf1_1 leaf1_2 leaf2_1 leaf2_2 node1_1
+leaf1_1* leaf1_2* leaf2_1* leaf2_2*
+leaf1_2 leaf2_1
+leaf2_2 node1_1 node1_2
+leaf1_2* leaf2_1* leaf2_2* node1_1*
+node1_1* node1_2*
+node1_1 node1_2
+leaf3_1 leaf3_2 leaf4_1 leaf4_2 node2_1
+leaf3_1* leaf3_2* leaf4_1* leaf4_2*
+leaf3_2 leaf4_1
+leaf4_2 node2_1 node2_2
+leaf3_2* leaf4_1* leaf4_2* node2_1*
+node2_1* node2_2*
+node2_1 node2_2
+leaf5_1 leaf5_2 leaf6_1 leaf6_2 node3_1
+leaf5_1* leaf5_2* leaf6_1* leaf6_2*
+leaf5_2 leaf6_1
+leaf6_2 node3_1 node3_2
+leaf5_2* leaf6_1* leaf6_2* node3_1*
+node3_1* node3_2*
+node3_1 node3_2
+leaf7_1 leaf7_2 leaf8_1 leaf8_2 node4_1
+leaf7_1* leaf7_2* leaf8_1* leaf8_2*
+leaf7_2 leaf8_1
+leaf8_2 node4_1 node4_2
+leaf7_2* leaf8_1* leaf8_2* node4_1*
+node4_1* node4_2*
+node4_1 node4_2
+leaf9_1 leaf9_2 leaf10_1 leaf10_2 node5_1
+leaf9_1* leaf9_2* leaf10_1* leaf10_2*
+leaf9_2 leaf10_1
+leaf10_2 node5_1 node5_2
+leaf9_2* leaf10_1* leaf10_2* node5_1*
+node5_1* node5_2*
+node5_1 node5_2
+leaf11_1 leaf11_2 leaf12_1 leaf12_2 node6_1
+leaf11_1* leaf11_2* leaf12_1* leaf12_2*
+leaf11_2 leaf12_1
+leaf12_2 node6_1 node6_2
+leaf11_2* leaf12_1* leaf12_2* node6_1*
+node6_1* node6_2*
+node6_1 node6_2
+leaf13_1 leaf13_2 leaf14_1 leaf14_2 node7_1
+leaf13_1* leaf13_2* leaf14_1* leaf14_2*
+leaf13_2 leaf14_1
+leaf14_2 node7_1 node7_2
+leaf13_2* leaf14_1* leaf14_2* node7_1*
+node7_1* node7_2*
+node7_1 node7_2
+leaf15_1 leaf15_2 leaf16_1 leaf16_2 node8_1
+leaf15_1* leaf15_2* leaf16_1* leaf16_2*
+leaf15_2 leaf16_1
+leaf16_2 node8_1 node8_2
+leaf15_2* leaf16_1* leaf16_2* node8_1*
+node8_1* node8_2*
+node8_1 node8_2
+node1_1 node1_2 node2_1 node2_2 node9_1
+node1_1* node1_2* node2_1* node2_2*
+node1_2 node2_1
+node2_2 node9_1 node9_2
+node1_2* node2_1* node2_2* node9_1*
+node9_1* node9_2*
+node9_1 node9_2
+node3_1 node3_2 node4_1 node4_2 node10_1
+node3_1* node3_2* node4_1* node4_2*
+node3_2 node4_1
+node4_2 node10_1 node10_2
+node3_2* node4_1* node4_2* node10_1*
+node10_1* node10_2*
+node10_1 node10_2
+node5_1 node5_2 node6_1 node6_2 node11_1
+node5_1* node5_2* node6_1* node6_2*
+node5_2 node6_1
+node6_2 node11_1 node11_2
+node5_2* node6_1* node6_2* node11_1*
+node11_1* node11_2*
+node11_1 node11_2
+node7_1 node7_2 node8_1 node8_2 node12_1
+node7_1* node7_2* node8_1* node8_2*
+node7_2 node8_1
+node8_2 node12_1 node12_2
+node7_2* node8_1* node8_2* node12_1*
+node12_1* node12_2*
+node12_1 node12_2
+node9_1 node9_2 node10_1 node10_2 node13_1
+node9_1* node9_2* node10_1* node10_2*
+node9_2 node10_1
+node10_2 node13_1 node13_2
+node9_2* node10_1* node10_2* node13_1*
+node13_1* node13_2*
+node13_1 node13_2
+node11_1 node11_2 node12_1 node12_2 node14_1
+node11_1* node11_2* node12_1* node12_2*
+node11_2 node12_1
+node12_2 node14_1 node14_2
+node11_2* node12_1* node12_2* node14_1*
+node14_1* node14_2*
+node14_1 node14_2
+node13_1 node13_2 node14_1 node14_2 node15_1
+node13_1* node13_2* node14_1* node14_2*
+node13_2 node14_1
+node14_2 node15_1 node15_2
+node13_2* node14_1* node14_2* node15_1*
+node15_1* node15_2*
+node15_1 node15_2
