@@ -33,11 +33,24 @@ from hilbert_pipeline import (
 from paths import EXAMPLE_TBNS_DIR, LEAKAGE_HB_DIR, LOGS_DIR
 
 
+class NullLog:
+    def write(self, *_args, **_kwargs):
+        return 0
+    def flush(self):
+        return None
+    def __enter__(self):
+        return self
+    def __exit__(self, *_exc):
+        return False
+
+
 def leakage_analysis(cascade_n: int = 8, t: int = 5, k: int = 25,
-                     only: str = "both"):
+                     only: str = "both", fallback_dp: bool = True,
+                     logs: bool = False):
     """Run covering-design enumeration on cascade-n {full, first-input-removed}.
 
     only ∈ {"both", "full", "incomplete"} restricts which variant to run.
+    fallback_dp lets benchmark/leakage runs proceed when LJCR is unavailable.
     """
     SAVE_DIR = LEAKAGE_HB_DIR
     all_files = {
@@ -55,7 +68,8 @@ def leakage_analysis(cascade_n: int = 8, t: int = 5, k: int = 25,
     MODE = "monomer"
 
     os.makedirs(SAVE_DIR, exist_ok=True)
-    os.makedirs(LOGS_DIR, exist_ok=True)
+    if logs:
+        os.makedirs(LOGS_DIR, exist_ok=True)
     cleanup_normaliz_files()
     start_input_listener()
 
@@ -81,20 +95,22 @@ def leakage_analysis(cascade_n: int = 8, t: int = 5, k: int = 25,
             SAVE_DIR,
             f"log_leakage_{MODE}_{label}_n{n_monomers}_t{T}_k{K}.txt"
         )
+        log_cm = open(log_file, "a") if logs else NullLog()
 
-        with open(log_file, "a") as log:
-            log.write(
-                f"Leakage Analysis — Pareto-Optimal Polymer Enumeration\n"
-                f"Started    : {datetime.now()}\n"
-                f"System     : {label}  ({monomer_file})\n"
-                f"Mode       : {MODE}  |  t={T}  |  k={K}\n"
-                f"n_monomers={n_monomers}  n_domains={n_domains}\n"
-                + "=" * 70 + "\n"
-            )
-            log.flush()
+        with log_cm as log:
+            if logs:
+                log.write(
+                    f"Leakage Analysis — Pareto-Optimal Polymer Enumeration\n"
+                    f"Started    : {datetime.now()}\n"
+                    f"System     : {label}  ({monomer_file})\n"
+                    f"Mode       : {MODE}  |  t={T}  |  k={K}  |  fallback_dp={fallback_dp}\n"
+                    f"n_monomers={n_monomers}  n_domains={n_domains}\n"
+                    + "=" * 70 + "\n"
+                )
+                log.flush()
 
             try:
-                blocks = load_covering_blocks(n, K, T, fallback_dp=False)
+                blocks = load_covering_blocks(n, K, T, fallback_dp=fallback_dp)
             except RuntimeError as e:
                 msg = f"  [{label}] Could not load covering blocks: {e}\n"
                 print(msg); log.write(msg); log.flush()
@@ -151,8 +167,12 @@ def main():
                         help="Block size k. Default 25.")
     parser.add_argument("--only", choices=["both", "full", "incomplete"], default="both",
                         help="Which cascade variant to run. Default 'both'.")
+    parser.add_argument("--no-fallback-dp", action="store_true",
+                        help="Do not use the local covering-design DP fallback if LJCR is unavailable.")
+    parser.add_argument("--logs", action="store_true",
+                        help="Write verbose leakage enumeration logs. Default: no verbose log files.")
     args = parser.parse_args()
-    leakage_analysis(cascade_n=args.cascade_n, t=args.t, k=args.k, only=args.only)
+    leakage_analysis(cascade_n=args.cascade_n, t=args.t, k=args.k, only=args.only, fallback_dp=not args.no_fallback_dp, logs=args.logs)
 
 
 if __name__ == "__main__":

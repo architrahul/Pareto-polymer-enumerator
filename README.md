@@ -186,7 +186,7 @@ This probes candidate block sizes `k`, chooses the best projected runtime, runs 
 | `--mode monomer` | no | `monomer` | Cover subsets of monomer types. This is the main mode used in the paper. |
 | `--mode domain` | no | `monomer` | Cover subsets of domain types instead. Experimental / appendix mode. |
 | `--include-base` | no | off | Also include the full-system case `k = n`. Ignored if `--k` is given. |
-| `--fallback-dp` | no | off | If the La Jolla Covering Repository has no `(n,k,t)` design, construct one locally using the GPK dynamic-programming construction. |
+| `--fallback-dp` | no | off | If LJCR has no direct `(n,k,t)` design, use the bundled GPK dynamic-programming construction data to build one. Requires internet access as well. |
 | `--probe` | no | off | Probe runtimes only; do not run the full enumeration. Ignored if `--k` is given. |
 | `--save` | no | off | Save polymer-vector output to disk. |
 | `--save-dir PATH` | no | `results/hilbert_output/` | Directory for saved polymer-vector files. Used only with `--save`. |
@@ -249,6 +249,43 @@ python hilbert_pipeline.py \
   --save
 ```
 
+### Covering-design DP fallback
+
+For larger block sizes, LJCR may not store the exact covering design requested by the pipeline. Passing `--fallback-dp` lets the code build the missing covering using the GPK dynamic-programming construction data bundled with this repository:
+
+```text
+data/covering_design/gpk_dp.sqlite
+```
+
+Use it like this:
+
+```bash
+python src/hilbert_pipeline.py \
+  --monomer-file example-tbns/monomers_cascade_n7.txt \
+  --t 5 \
+  --k 30 \
+  --fallback-dp \
+  --save
+```
+
+`--fallback-dp` requires internet access as well because the construction may need to retrieve smaller covering designs from LJCR.
+
+#### Rebuild the bundled construction data, advanced
+
+The bundled database covers `v ≤ 150`, `k ≤ 80`, `t ≤ 8`. To rebuild or extend it, run from the repository root:
+
+```bash
+python src/covering_design/rebuild_dp_db.py \
+  --bounds-only \
+  --out-dir data/covering_design_rebuild \
+  --V 150 \
+  --K 80 \
+  --T 8 \
+  --replace
+```
+
+This creates a new `gpk_dp.sqlite`; replace `data/covering_design/gpk_dp.sqlite` only after validating the rebuilt database.
+
 Output files contain one polymer vector per line:
 
 ```text
@@ -268,7 +305,7 @@ After saving polymer vectors, run:
 python src/coffee_pipeline.py \
   --monomers example-tbns/monomers_cascade_n7.txt \
   --polymers results/hilbert_output/<your_polymer_file>.txt \
-  --out-dir results/coffee/cascade_n7 \
+  --out-dir results/common/coffee/cascade_n7 \
   --coffee-cli coffee/crates/coffee-cli/target/release/coffee-cli \
   --label cascade_n7
 ```
@@ -311,13 +348,20 @@ concentration_M,polymer_vector
 Use the consolidated benchmark runner from the repository root:
 
 ```bash
-caffeinate -i -s ./run_all_benchmarks.sh </dev/null
+./run_all_benchmarks.sh
+```
+
+By default, verbose benchmark logs are off to avoid very large log files. To keep logs, run:
+
+```bash
+./run_all_benchmarks.sh --logs
 ```
 
 or call the Python runner directly:
 
 ```bash
 python src/benchmarks/run_benchmarks.py --experiments all
+python src/benchmarks/run_benchmarks.py --experiments all --logs   # keep verbose logs
 ```
 
 You can also run selected experiments:
@@ -330,29 +374,37 @@ python src/benchmarks/run_benchmarks.py --experiments 4              # leakage a
 python src/benchmarks/run_benchmarks.py --experiments 1 3            # multiple selected experiments
 ```
 
-The four consolidated experiments are:
+The four experiments are:
 
 1. **Runtime vs k** for `linear_cascade_n7` and `damien_n10`. Cascade-7 uses the DP covering fallback and, after `k=25`, tests `k` in increments of 5.
 2. **Runtime vs t** for linear cascades `m=5..9`, binary trees `d=3,4`, and DNA cascades `m=4..7`. For each `(system,t)`, the script probes `k`, records the probe time, runs the best covering enumeration only if the projected time is below 30 minutes, and also runs the Full-HB baseline.
 3. **Equilibrium recovery** for cascade-7 with the first input removed: full P* versus `t=3` and `t=5` at `k=25`, using COFFEE at `1 µM` initial concentration and `-20` binding energy.
 4. **Leakage analysis**: first compare removed inputs `K=1..7`, then compare leakage for different `t` values against full P*. Only polymers above `1 nM` are counted in leakage summaries.
 
-Organized outputs are written to:
+Outputs are written to:
 
 ```text
-results/benchmarks/01_runtime_vs_k/          CSV + one figure per system
-results/benchmarks/02_runtime_by_t/          CSV + one figure per family
-results/benchmarks/03_equilibrium_recovery/  equilibrium error figures and output index
-results/benchmarks/04_leakage/               leakage summaries, CSVs, and figures
+results/benchmarks/01_runtime_vs_k/
+  runtime_vs_k.csv, runtime_vs_k.jsonl, figures/PNG files
+results/benchmarks/02_runtime_by_t/
+  probe_details.csv, runtime CSVs, runtime_by_t_*.png
+results/benchmarks/03_equilibrium_recovery/
+  figures/        equilibrium relative-error plots
+  csv/            compact output index
+  hilbert_basis/  full and reduced polymer-vector files
+  coffee/         COFFEE inputs, raw outputs, and sorted polymer CSVs
+results/benchmarks/04_leakage/
+  removed_inputs/ removed-input sweep summary, plot, per-K CSVs
+  vary_t/         t-sweep summary, plot, per-polymer CSVs
+  csv/            tidy aggregate CSV exports
 ```
 
-The underlying helper scripts also write their detailed outputs to:
+Shared caches used across experiments live at:
 
 ```text
-results/leakage/hilbert_basis/        leakage Hilbert-basis files
-results/leakage/coffee/               leakage COFFEE inputs/outputs/CSVs
-results/leakage/analysis/             leakage summaries and plots
-results/csv/                          tidy CSV exports
+results/common/hilbert_basis/         reusable Hilbert-basis polymer-vector files
+results/common/coffee/                reusable COFFEE inputs, raw outputs, and sorted CSVs
+results/benchmarks/logs/              verbose logs, only when run with --logs
 ```
 
 ---

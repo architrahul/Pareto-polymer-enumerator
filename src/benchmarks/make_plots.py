@@ -20,6 +20,11 @@ import os
 import sys
 from glob import glob
 
+
+# Keep matplotlib cache inside results/ so scripts run cleanly on locked-down machines.
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results", ".matplotlib"))
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
+
 import matplotlib.pyplot as plt
 import numpy as np
 

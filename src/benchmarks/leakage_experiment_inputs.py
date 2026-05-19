@@ -8,7 +8,8 @@ and compare per-polymer equilibrium concentrations against the
 user-specified "expected" polymer set (see expected_polymers.py).
 
 Outputs:
-  results/leakage/analysis/vary_removed_inputs/n{N}_systems_compare/
+  results/benchmarks/04_leakage/removed_inputs/
+  reusable shared cache: results/common/hilbert_basis/ and results/common/coffee/
     K{K}/
       coffee_output.txt
       input.ocx / input.con (in coffee_input/)
@@ -25,6 +26,11 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+
+
+# Keep matplotlib cache inside results/ so scripts run cleanly on locked-down machines.
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results", ".matplotlib"))
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -71,7 +77,7 @@ SIGNIFICANCE_CUTOFF = 1e-9   # 1 nM (1 µM initial monomer conc)
 
 def _compute_full_hb(monomers_path: str, system_label: str) -> str:
     """Run one Normaliz call on the full system; cache the projected basis at
-    results/leakage/hilbert_basis/hilbert_full_p_star_{system_label}.txt.
+    results/common/hilbert_basis/hilbert_full_p_star_{system_label}.txt.
     Returns the path (or raises if Normaliz returned no vectors)."""
     out = os.path.join(LEAKAGE_HB_DIR, f"hilbert_full_p_star_{system_label}.txt")
     if os.path.exists(out):

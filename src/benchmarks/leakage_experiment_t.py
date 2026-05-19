@@ -11,7 +11,8 @@ under the leakage scenario (x1 = 0 µM, others = 1 µM). We then compare:
     analysed_leakage(t) = P̂_{k=25,t} equilibrium  vs  expected
 
 across t, and write:
-    results/leakage/analysis/vary_t/n{N}_incomplete/
+    results/benchmarks/04_leakage/vary_t/
+  reusable shared cache: results/common/hilbert_basis/ and results/common/coffee/
         figure_leakage_vs_t.png           summary plot
         summary.json                      aggregate metrics
         polymer_compare_full_pstar.csv    per-polymer table, full P*
@@ -26,6 +27,11 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+
+
+# Keep matplotlib cache inside results/ so scripts run cleanly on locked-down machines.
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "results", ".matplotlib"))
+os.makedirs(os.environ["MPLCONFIGDIR"], exist_ok=True)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -199,6 +205,8 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--n", type=int, default=7, dest="cascade_n",
                         help="Cascade depth. Default 7.")
+    parser.add_argument("--logs", action="store_true",
+                        help="Write verbose covering-enumeration logs. Default: no verbose log files.")
     args = parser.parse_args()
 
     n = args.cascade_n
@@ -233,7 +241,7 @@ def main():
             print(f"  [covering t={t}] exists  -> {os.path.basename(out_txt)}")
             continue
         print(f"  [covering t={t}] missing -> running leakage_analysis ...")
-        leakage_analysis(cascade_n=n, t=t, k=K_FIXED, only="incomplete")
+        leakage_analysis(cascade_n=n, t=t, k=K_FIXED, only="incomplete", logs=args.logs)
 
     # 3) Discover all polymer files we want to compare.
     # NOTE: the expected polymer set is NOT run through COFFEE — it's the

@@ -11,19 +11,25 @@ from collections import OrderedDict
 import requests
 from bs4 import BeautifulSoup
 import threading
+import atexit
+import glob
+import json
+import sqlite3
+from functools import lru_cache
 from export_polymers import save_polymer_vectors
-from paths import DEFAULT_MONOMER_FILE, NORMALIZ_EXE, LOGS_DIR, RESULTS_DIR
+from paths import DEFAULT_MONOMER_FILE, NORMALIZ_EXE, LOGS_DIR, RESULTS_DIR, COVERING_DP_DB
 
 # -------------------------
 # Config
 # -------------------------
 
-PYTHON_SCRIPT        = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "monomers_to_normaliz.py"
-)
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+PYTHON_SCRIPT = os.path.join(SRC_DIR, "monomers_to_normaliz.py")
 
-TMP_MONOMERS = "tmp_monomers.txt"
-TMP_EQS      = "eqs.in"
+SCRATCH_DIR  = os.path.join(SRC_DIR, ".normaliz_tmp")
+TMP_MONOMERS = os.path.join(SCRATCH_DIR, "tmp_monomers.txt")
+TMP_VECTORS  = os.path.join(SCRATCH_DIR, "vectors.txt")
+TMP_EQS      = os.path.join(SCRATCH_DIR, "eqs")
 PROBE_LIMIT  = 100
 K_MAX        = 25
 
@@ -34,13 +40,33 @@ NORMALIZ_TIMEOUT_SECONDS = 3 * 3600  # 3 hours
 # Utility functions
 # -------------------------
 
-def cleanup_normaliz_files():
-    for pattern in ["eqs.out", "eqs.gen", "eqs.inv", "eqs.cst", "eqs.typ", "eqs.egn"]:
-        if os.path.exists(pattern):
-            os.remove(pattern)
+def ensure_scratch_dir():
+    """Create the shared Normaliz scratch directory under src/."""
+    os.makedirs(SCRATCH_DIR, exist_ok=True)
 
 
-def read_hilbert_basis(base_filename="eqs"):
+def cleanup_normaliz_files(remove_dir=False):
+    """Remove generated Normaliz/converter scratch files.
+
+    This repo assumes one Normaliz run at a time. Scratch files live directly in
+    src/.normaliz_tmp so even interrupted runs leave only a small bounded set of
+    files, which the next block removes before starting.
+    """
+    if not os.path.isdir(SCRATCH_DIR):
+        return
+    for path in glob.glob(os.path.join(SCRATCH_DIR, "eqs.*")):
+        if os.path.isfile(path):
+            os.remove(path)
+    for name in ["tmp_monomers.txt", "vectors.txt"]:
+        path = os.path.join(SCRATCH_DIR, name)
+        if os.path.exists(path):
+            os.remove(path)
+
+
+atexit.register(cleanup_normaliz_files)
+
+
+def read_hilbert_basis(base_filename=TMP_EQS):
     output_file = f"{base_filename}.out"
     if not os.path.exists(output_file):
         return []
@@ -178,6 +204,195 @@ def fetch_covering_online(v: int, k: int, t: int) -> list:
     return blocks
 
 
+# SQLite recipe support for --fallback-dp.
+#
+# The bundled DB stores compact GPK Section 5 construction choices. It does not
+# store all covering blocks; blocks are materialized on demand, fetching seed
+# designs from LJCR when needed.
+#   COVERING_DP_DB          optional override for the recipe DB
+#   COVERING_REPO_DB        optional local seed-block cache
+#   COVERING_DP_RUN_NAME    optional run_name
+_OFFLINE_COVER_CACHE: dict = {}
+
+
+def _normalize_blocks(blocks):
+    seen = set()
+    out = []
+    for block in blocks:
+        b = tuple(sorted(int(x) for x in block))
+        if b not in seen:
+            seen.add(b)
+            out.append(list(b))
+    return out
+
+
+def _covering_recipe_paths():
+    # Default to the bundled compact DP recipe DB. Users can override with
+    # COVERING_DP_DB after rebuilding the table. COVERING_REPO_DB is optional;
+    # without it, seed designs are fetched from LJCR online as needed.
+    dp_db = os.environ.get("COVERING_DP_DB") or COVERING_DP_DB
+    if not dp_db or not os.path.exists(dp_db):
+        return None
+    repo_db = os.environ.get("COVERING_REPO_DB")
+    if repo_db and not os.path.exists(repo_db):
+        repo_db = None
+    run_name = os.environ.get("COVERING_DP_RUN_NAME") or "gpk_V150_K80_T8"
+    return repo_db, dp_db, run_name
+
+
+def _trivial_cover(key):
+    v, k, t = key
+    if t == 0:
+        return [list(range(1, k + 1))]
+    if k == v:
+        return [list(range(1, v + 1))]
+    if t == 1:
+        blocks = []
+        for start in range(1, v + 1, k):
+            core = list(range(start, min(start + k, v + 1)))
+            filler = [x for x in range(1, v + 1) if x not in core]
+            blocks.append(sorted(core + filler[: k - len(core)]))
+        return _normalize_blocks(blocks)
+    if t == k:
+        return [list(c) for c in itertools.combinations(range(1, v + 1), k)]
+    raise RuntimeError(f"No trivial covering construction for C{key}")
+
+
+def _fetch_seed_blocks(repo_conn, key):
+    """Fetch seed blocks from an optional local repo DB, else LJCR online."""
+    if repo_conn is not None:
+        rows = repo_conn.execute(
+            "SELECT block FROM seed_design_blocks WHERE v=? AND k=? AND t=? ORDER BY block_index",
+            key,
+        ).fetchall()
+        if rows:
+            return [[int(x) for x in row[0].split()] for row in rows]
+    return fetch_covering_online(*key)
+
+
+def _recipe_run_names(dp_conn, run_name, key):
+    if run_name:
+        return [run_name]
+    rows = dp_conn.execute(
+        """
+        SELECT b.run_name
+        FROM dp_bounds b
+        LEFT JOIN dp_runs r ON r.run_name = b.run_name
+        WHERE b.v=? AND b.k=? AND b.t=?
+        ORDER BY COALESCE(r.created_at, '') DESC, b.run_name DESC
+        """,
+        key,
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+def _try_covering_dp_recipe(v: int, k: int, t: int):
+    """Materialize blocks from the bundled GPK DP recipe DB, or None."""
+    key = (v, k, t)
+    if key in _OFFLINE_COVER_CACHE:
+        return _OFFLINE_COVER_CACHE[key]
+
+    paths = _covering_recipe_paths()
+    if paths is None:
+        return None
+    repo_db, dp_db, requested_run = paths
+
+    try:
+        repo_conn = sqlite3.connect(repo_db) if repo_db else None
+        dp_conn = sqlite3.connect(dp_db)
+        if repo_conn is not None:
+            repo_conn.row_factory = sqlite3.Row
+        dp_conn.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return None
+
+    try:
+        run_names = _recipe_run_names(dp_conn, requested_run, key)
+        if not run_names:
+            return None
+
+        def product(left_blocks, right_blocks, right_offset, local_v, local_k):
+            out = []
+            for left in left_blocks:
+                for right in right_blocks:
+                    merged = sorted(set(left) | {x + right_offset for x in right})
+                    if len(merged) < local_k:
+                        used = set(merged)
+                        filler = [x for x in range(1, local_v + 1) if x not in used]
+                        merged = sorted(merged + filler[: local_k - len(merged)])
+                    out.append(merged)
+            return _normalize_blocks(out)
+
+        for run_name in run_names:
+            @lru_cache(maxsize=None)
+            def build_cover(cur_key):
+                row = dp_conn.execute(
+                    "SELECT * FROM dp_bounds WHERE run_name=? AND v=? AND k=? AND t=?",
+                    (run_name, cur_key[0], cur_key[1], cur_key[2]),
+                ).fetchone()
+                if row is None:
+                    # A direct seed may exist even if no reason row was stored.
+                    return tuple(tuple(b) for b in _fetch_seed_blocks(repo_conn, cur_key))
+
+                rtype = row["reason_kind"]
+                if rtype == "seed":
+                    if row["source"] == "trivial":
+                        return tuple(tuple(b) for b in _trivial_cover(cur_key))
+                    return tuple(tuple(b) for b in _fetch_seed_blocks(repo_conn, cur_key))
+                if rtype == "lift":
+                    src = (row["src_v"], row["src_k"], row["src_t"])
+                    lifted = []
+                    for block in build_cover(src):
+                        b = sorted(set(block) | {cur_key[0]})
+                        if len(b) < cur_key[1]:
+                            used = set(b)
+                            filler = [x for x in range(1, cur_key[0] + 1) if x not in used]
+                            b = sorted(b + filler[: cur_key[1] - len(b)])
+                        lifted.append(b)
+                    return tuple(tuple(b) for b in lifted)
+                if rtype == "weaken":
+                    src = (row["src_v"], row["src_k"], row["src_t"])
+                    return build_cover(src)
+                if rtype == "section5":
+                    tree = json.loads(row["tree_json"])
+
+                    def build_interval(node):
+                        if node["type"] == "direct":
+                            left_key = tuple(node["left"])
+                            right_key = tuple(node["right"])
+                            return product(
+                                [list(b) for b in build_cover(left_key)],
+                                [list(b) for b in build_cover(right_key)],
+                                left_key[0],
+                                cur_key[0],
+                                cur_key[1],
+                            )
+                        return _normalize_blocks(build_interval(node["left"]) + build_interval(node["right"]))
+
+                    return tuple(tuple(b) for b in build_interval(tree))
+                raise RuntimeError(f"Unknown fallback-DP recipe reason kind {rtype!r}")
+
+            try:
+                blocks = [list(b) for b in build_cover(key)]
+                if blocks:
+                    _OFFLINE_COVER_CACHE[key] = blocks
+                    print(f"  Built fallback-DP covering C({v},{k},{t}) with {len(blocks)} blocks.")
+                    return blocks
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to materialize C({v},{k},{t}) from covering DP database. "
+                    "The fallback construction requires internet access to fetch seed designs from LJCR."
+                ) from e
+    finally:
+        try:
+            if repo_conn is not None:
+                repo_conn.close()
+            dp_conn.close()
+        except Exception:
+            pass
+    return None
+
+
 # In-memory caches (per process; never persisted):
 #   _DP_SIZE  : (v, k, t) -> integer size of the design _DP would produce
 #   _DP_PLAN  : (v, k, t) -> 'plan' explaining how to build the design (see below)
@@ -263,7 +478,9 @@ def _dp_size(v: int, k: int, t: int) -> int:
       ("trivial", "empty")   -> one empty block (t = 0, k = 0)
       ("trivial", "one")     -> one [1..k] block (t = 0, k > 0)
       ("ljcr",)              -> blocks cached in _LJCR_CACHE
-      ("split", v1, [(s, ℓ), …])  -> GPK §5 split with chosen ℓ for each s
+      ("weaken", src)        -> reuse a C(v,k,t+1) cover as a C(v,k,t) cover
+      ("lift", src)          -> append point v to every C(v-1,k-1,t) block
+      ("split", v1, root)    -> GPK §5 interval-DP split
     """
     if (v, k, t) in _DP_SIZE:
         return _DP_SIZE[(v, k, t)]
@@ -314,13 +531,33 @@ def _dp_size(v: int, k: int, t: int) -> int:
             except (RuntimeError, requests.RequestException):
                 _LJCR_CACHE[(v, k, t)] = None   # cache the "miss"
 
+    # --- Recursive improvements used by the fallback-DP recipe code -----
+    # Weaken: a (v,k,t+1)-cover also covers every t-subset.
+    # Lift: from C(v-1,k-1,t), append the new point v to every block.
+    # These two rules are especially important for k > 25 because they can
+    # reduce quickly to an LJCR seed instead of invoking an expensive Section 5
+    # construction from scratch.
+    best = math.inf
+    best_plan = None
+
+    if t + 1 <= k:
+        src = (v, k, t + 1)
+        cand = _dp_size(*src)
+        if cand < best:
+            best = cand
+            best_plan = ("weaken", src)
+
+    if v >= 1 and k >= 1:
+        src = (v - 1, k - 1, t)
+        cand = _dp_size(*src)
+        if cand < best:
+            best = cand
+            best_plan = ("lift", src)
+
     # --- GPK §5 refined c_{i,j} interval DP -----------------------------
     # Prefetch all leaf sub-queries concurrently before iterating.
     subs = _enumerate_subqueries(v, k, t)
     _prefetch_ljcr_concurrent(subs)
-
-    best = math.inf
-    best_plan = None
     for v1 in _split_candidates(v, t):
         v2 = v - v1
 
@@ -409,6 +646,19 @@ def _materialise(v: int, k: int, t: int) -> list:
             raise RuntimeError(f"unknown trivial subkind {subkind}")
     elif kind == "ljcr":
         result = _LJCR_CACHE[(v, k, t)]
+    elif kind == "weaken":
+        _, src = plan
+        result = [list(block) for block in _materialise(*src)]
+    elif kind == "lift":
+        _, src = plan
+        result = []
+        for block in _materialise(*src):
+            lifted = sorted(set(block) | {v})
+            if len(lifted) < k:
+                used = set(lifted)
+                filler = [x for x in range(1, v + 1) if x not in used]
+                lifted = sorted(lifted + filler[: k - len(lifted)])
+            result.append(lifted)
     elif kind == "split":
         _, v1, root = plan
         v2 = v - v1
@@ -443,22 +693,28 @@ def _materialise(v: int, k: int, t: int) -> list:
 
 
 def compute_covering_dp(v: int, k: int, t: int) -> list:
-    """
-    Build a (v, k, t)-covering design via the construction in Section 5 of
-    Gordon-Patashnik-Kuperberg 1995 (arXiv:math/9502238).
+    """Build C(v,k,t) from the bundled GPK recipe database.
 
-    Two passes (size DP + materialisation) — see _dp_size and _materialise.
-    LJCR is consulted only at leaves (k ≤ 25, t ≤ 8, v < 100) and each
-    (v, k, t) is fetched at most once per process.
-
-    Returns a list of k-blocks (each a list of ints in [1, v]).
+    This is intentionally strict: if the recipe DB is missing, the requested
+    state is outside its range, or an online LJCR seed fetch fails, raise a
+    clear error. Do not silently fall back to the older runtime Section-5 search,
+    because that can generate different covering sizes and change experiments.
     """
     if (v, k, t) in _COVERING_DP_CACHE:
         return _COVERING_DP_CACHE[(v, k, t)]
-    size = _dp_size(v, k, t)
-    if size == math.inf:
-        raise RuntimeError(f"C({v}, {k}, {t}) has no constructible design via GPK §5")
-    return _materialise(v, k, t)
+
+    blocks = _try_covering_dp_recipe(v, k, t)
+    if blocks is None:
+        raise RuntimeError(
+            f"Could not build C({v},{k},{t}) with --fallback-dp. "
+            "Check that data/covering_design/gpk_dp.sqlite exists, the requested "
+            "parameters are covered by it, and internet access to LJCR is available."
+        )
+
+    _COVERING_DP_CACHE[(v, k, t)] = blocks
+    _DP_SIZE[(v, k, t)] = len(blocks)
+    _DP_PLAN[(v, k, t)] = ("fallback_dp_recipe",)
+    return blocks
 
 
 def load_covering_blocks(v: int, k: int, t: int, fallback_dp: bool = False) -> list:
@@ -482,7 +738,7 @@ def load_covering_blocks(v: int, k: int, t: int, fallback_dp: bool = False) -> l
                 f"Online fetch failed for C({v},{k},{t}): {e}. "
                 f"Use --fallback-dp to build the covering locally."
             ) from e
-        print(f"  Online fetch failed ({e}). Falling back to DP construction.")
+        print(f"  Online fetch failed ({e}). Trying --fallback-dp construction.")
         return compute_covering_dp(v, k, t)
 
 
@@ -499,13 +755,22 @@ def run_normaliz_on_subset(subset_monomers: list) -> tuple:
     this returns (elapsed, []) so the caller treats the block as
     contributing no Hilbert basis vectors.
     """
+    cleanup_normaliz_files()
+    ensure_scratch_dir()
+
     with open(TMP_MONOMERS, "w") as f:
         for m in subset_monomers:
             f.write(m + "\n")
 
     subprocess.run(
-        ["python", PYTHON_SCRIPT],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+        [
+            sys.executable, PYTHON_SCRIPT,
+            "--input", TMP_MONOMERS,
+            "--vectors", TMP_VECTORS,
+            "--eqs-in", f"{TMP_EQS}.in",
+        ],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+        cwd=SRC_DIR,
     )
 
     t0 = time.time()
@@ -514,6 +779,7 @@ def run_normaliz_on_subset(subset_monomers: list) -> tuple:
             [NORMALIZ_EXE, "-d", "-N", TMP_EQS],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             timeout=NORMALIZ_TIMEOUT_SECONDS,
+            cwd=SRC_DIR,
         )
     except subprocess.TimeoutExpired:
         elapsed = time.time() - t0
@@ -1102,4 +1368,7 @@ def main():
     cleanup_normaliz_files()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        cleanup_normaliz_files()

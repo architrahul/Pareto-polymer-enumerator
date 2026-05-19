@@ -10,7 +10,7 @@ Example:
 
 python src/coffee_pipeline.py \
   --monomers example-tbns/monomers_cascade_n7.txt \
-  --polymers results/experiments/hilbert_basis/phase3_full_hb_cascade_size7.txt \
+  --polymers results/common/hilbert_basis/phase3_full_hb_cascade_size7.txt \
   --out-dir results/linear_cascade_size7/coffee_input/normal \
   --coffee-cli coffee/crates/coffee-cli/target/release/coffee-cli \
   --label normal

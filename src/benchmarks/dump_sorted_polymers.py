@@ -3,7 +3,7 @@ dump_sorted_polymers.py — Dump (polymer, equilibrium concentration) rows
 sorted by decreasing concentration, for each of the three leakage polymer
 sets (k=25 t=3, k=25 t=5, full P*) produced by leakage_coffee.py.
 
-Outputs (one per set, under results/leakage/coffee/n{N}_incomplete/<set>/):
+Outputs (one per set, under results/common/coffee/n{N}_incomplete/<set>/):
   polymers_sorted.csv        Full sorted table: rank,concentration,energy,m1,m2,...
   polymers_sorted_top50.txt  Human-readable top-50 with monomer-name expansion
 

@@ -11,9 +11,9 @@ The three polymer sets:
   3. Full P*              →  baseline for both figures
 
 Each run is sequential (no concurrent Normaliz). Output files:
-  results/leakage/hilbert_basis/hilbert_k25_t3_monomer_n{N}_incomplete.txt
-  results/leakage/hilbert_basis/hilbert_k25_t5_monomer_n{N}_incomplete.txt
-  results/leakage/hilbert_basis/hilbert_full_p_star_n{N}_incomplete.txt
+  results/common/hilbert_basis/hilbert_k25_t3_monomer_n{N}_incomplete.txt
+  results/common/hilbert_basis/hilbert_k25_t5_monomer_n{N}_incomplete.txt
+  results/common/hilbert_basis/hilbert_full_p_star_n{N}_incomplete.txt
 """
 
 import argparse
@@ -76,10 +76,13 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--n", type=int, default=7, dest="cascade_n",
                         help="Cascade depth. Default 7 (paper's |M|=56 case).")
+    parser.add_argument("--logs", action="store_true",
+                        help="Write verbose leakage enumeration logs. Default: no verbose log files.")
     args = parser.parse_args()
 
     os.makedirs(LEAKAGE_HB_DIR, exist_ok=True)
-    os.makedirs(LOGS_DIR, exist_ok=True)
+    if args.logs:
+        os.makedirs(LOGS_DIR, exist_ok=True)
 
     n         = args.cascade_n
     label     = f"n{n}_incomplete"
@@ -96,7 +99,7 @@ def main():
         print(f"\n[STEP 1] {p3_file} already exists — SKIP")
     else:
         print(f"\n[STEP 1] covering @ k=25 t=3 for {label}")
-        leakage_analysis(cascade_n=n, t=3, k=25, only="incomplete")
+        leakage_analysis(cascade_n=n, t=3, k=25, only="incomplete", logs=args.logs)
 
     # --- Step 2: P̂_{k=25, t=5} (Figure 6) ---
     p5_file = os.path.join(LEAKAGE_HB_DIR,
@@ -105,7 +108,7 @@ def main():
         print(f"\n[STEP 2] {p5_file} already exists — SKIP")
     else:
         print(f"\n[STEP 2] covering @ k=25 t=5 for {label}")
-        leakage_analysis(cascade_n=n, t=5, k=25, only="incomplete")
+        leakage_analysis(cascade_n=n, t=5, k=25, only="incomplete", logs=args.logs)
 
     # --- Step 3: Full P* baseline ---
     full_file = os.path.join(LEAKAGE_HB_DIR, f"hilbert_full_p_star_{label}.txt")

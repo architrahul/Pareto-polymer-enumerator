@@ -12,7 +12,7 @@ set to 1 µM. Each polymer's free energy is computed by counting bonds at
 -20 kT per bond, matching the paper's setup.
 
 Outputs land in
-  results/leakage/coffee/n{N}_incomplete/{set_label}/
+  results/common/coffee/n{N}_incomplete/{set_label}/
     ├── input.ocx
     ├── input.con
     ├── domain_energies.txt

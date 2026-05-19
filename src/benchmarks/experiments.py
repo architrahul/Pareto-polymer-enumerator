@@ -28,7 +28,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # parent src/
 
-from paths import EXAMPLE_TBNS_DIR, RESULTS_DIR, LOGS_DIR
+from paths import EXAMPLE_TBNS_DIR, RESULTS_DIR, HILBERT_BASIS_DIR, LOGS_DIR
 from hilbert_pipeline import (
     K_MAX,
     NORMALIZ_TIMEOUT_SECONDS,
@@ -44,7 +44,7 @@ from hilbert_pipeline import (
 )
 
 EXP_DIR    = os.path.join(RESULTS_DIR, "experiments")
-HB_OUT_DIR = os.path.join(EXP_DIR, "hilbert_basis")
+HB_OUT_DIR = HILBERT_BASIS_DIR
 os.makedirs(EXP_DIR, exist_ok=True)
 os.makedirs(HB_OUT_DIR, exist_ok=True)
 

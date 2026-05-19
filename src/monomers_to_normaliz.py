@@ -25,6 +25,10 @@
 # Domains with stars are treated as negative counts in the vector representation.
 
 from collections import OrderedDict
+import argparse
+import os
+
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Flags to enable/disable singleton types
 INCLUDE_NEGATIVE_SINGLETONS = True
@@ -142,15 +146,34 @@ def process_file(input_file_path, vectors_txt_path, eqs_in_path):
     return len(domain_order), len(monomers)
 
 if __name__ == "__main__":
-    input_file = "tmp_monomers.txt"  # Input file path
-    vectors_txt = "vectors.txt"  # Output vectors file path
-    eqs_in_file = "eqs.in"  # Path for the eqs.in file
-    
-    num_domains, num_monomers = process_file(input_file, vectors_txt, eqs_in_file)
-    print(f"Processing complete. Results written to {vectors_txt} and {eqs_in_file}")
+    parser = argparse.ArgumentParser(
+        description="Convert a monomer text file to Normaliz input files."
+    )
+    parser.add_argument(
+        "--input",
+        default=os.path.join(SRC_DIR, ".normaliz_tmp", "tmp_monomers.txt"),
+        help="Monomer file to convert. The Hilbert pipeline passes this explicitly.",
+    )
+    parser.add_argument(
+        "--vectors",
+        default=os.path.join(SRC_DIR, ".normaliz_tmp", "vectors.txt"),
+        help="Path for the diagnostic vectors.txt output.",
+    )
+    parser.add_argument(
+        "--eqs-in",
+        default=os.path.join(SRC_DIR, ".normaliz_tmp", "eqs.in"),
+        help="Path for the Normaliz .in file.",
+    )
+    args = parser.parse_args()
+
+    os.makedirs(os.path.dirname(os.path.abspath(args.vectors)), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(args.eqs_in)), exist_ok=True)
+
+    num_domains, num_monomers = process_file(args.input, args.vectors, args.eqs_in)
+    print(f"Processing complete. Results written to {args.vectors} and {args.eqs_in}")
     print(f"domains: {num_domains}")
     print(f"monomers: {num_monomers}")
-    
+
     # Print information about included singleton types
     singleton_types = []
     if INCLUDE_NEGATIVE_SINGLETONS:

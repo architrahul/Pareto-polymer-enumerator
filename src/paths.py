@@ -16,12 +16,17 @@ import sys
 
 REPO_ROOT        = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 EXAMPLE_TBNS_DIR = os.path.join(REPO_ROOT, "example-tbns")
+DATA_DIR         = os.path.join(REPO_ROOT, "data")
+COVERING_DP_DB   = os.path.join(DATA_DIR, "covering_design", "gpk_dp.sqlite")
 RESULTS_DIR      = os.path.join(REPO_ROOT, "results")
+COMMON_RESULTS_DIR = os.path.join(RESULTS_DIR, "common")
+HILBERT_BASIS_DIR = os.path.join(COMMON_RESULTS_DIR, "hilbert_basis")
 LOGS_DIR         = os.path.join(RESULTS_DIR, "logs")
 BENCHMARK_LOGS   = os.path.join(LOGS_DIR, "benchmarking")
 LEAKAGE_DIR      = os.path.join(RESULTS_DIR, "leakage")
-LEAKAGE_HB_DIR   = os.path.join(LEAKAGE_DIR, "hilbert_basis")
-LEAKAGE_COFFEE_DIR = os.path.join(LEAKAGE_DIR, "coffee")
+LEAKAGE_HB_DIR   = HILBERT_BASIS_DIR
+COFFEE_RESULTS_DIR = os.path.join(COMMON_RESULTS_DIR, "coffee")
+LEAKAGE_COFFEE_DIR = COFFEE_RESULTS_DIR
 LEAKAGE_ANALYSIS_DIR = os.path.join(LEAKAGE_DIR, "analysis")
 LEAKAGE_VARY_T_DIR = os.path.join(LEAKAGE_ANALYSIS_DIR, "vary_t")
 LEAKAGE_VARY_INPUTS_DIR = os.path.join(LEAKAGE_ANALYSIS_DIR, "vary_removed_inputs")

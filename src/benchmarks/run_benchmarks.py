@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from paths import EXAMPLE_TBNS_DIR, RESULTS_DIR
+from paths import EXAMPLE_TBNS_DIR, RESULTS_DIR, HILBERT_BASIS_DIR, COFFEE_RESULTS_DIR
 from hilbert_pipeline import (
     NORMALIZ_TIMEOUT_SECONDS,
     cleanup_normaliz_files,
@@ -58,7 +58,7 @@ from hilbert_pipeline import (
 )
 
 BENCH_DIR = Path(RESULTS_DIR) / "benchmarks"
-HB_DIR = BENCH_DIR / "hilbert_basis"
+HB_DIR = Path(HILBERT_BASIS_DIR)
 LOG_DIR = BENCH_DIR / "logs"
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -66,6 +66,28 @@ T_VALUES = list(range(3, 9))
 PHASE2_FULL_RUN_CAP_S = 30 * 60
 EXP1_T = 5
 CUTOFF_M = 1e-9
+ENABLE_LOGS = False
+
+
+class NullLog:
+    def write(self, *_args, **_kwargs):
+        return 0
+    def flush(self):
+        return None
+    def __enter__(self):
+        return self
+    def __exit__(self, *_exc):
+        return False
+
+
+def open_benchmark_log(path: Path, header: str):
+    if not ENABLE_LOGS:
+        return NullLog()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    f = path.open("w")
+    f.write(header + "\n")
+    f.flush()
+    return f
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +95,10 @@ CUTOFF_M = 1e-9
 # ---------------------------------------------------------------------------
 
 def ensure_dirs() -> None:
-    for d in [BENCH_DIR, HB_DIR, LOG_DIR]:
+    for d in [BENCH_DIR, HB_DIR]:
         d.mkdir(parents=True, exist_ok=True)
+    if ENABLE_LOGS:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def write_csv(path: Path, rows: list[dict], columns: list[str]) -> None:
@@ -124,6 +148,9 @@ def k_values_runtime_vs_k(n: int, t: int, allow_after_25: bool) -> list[int]:
 
 
 def run_subprocess(args: list[str]) -> None:
+    args = list(args)
+    if ENABLE_LOGS and args and args[0] in {"leakage_compute_all.py", "leakage_experiment_t.py", "leakage_analysis.py"}:
+        args.append("--logs")
     print("$", " ".join(args))
     subprocess.run([sys.executable] + args, cwd=SCRIPT_DIR, check=True)
 
@@ -151,8 +178,7 @@ def experiment1_runtime_vs_k() -> None:
 
     rows: list[dict] = []
     start_input_listener()
-    with log_path.open("w") as log:
-        log.write(f"experiment1_runtime_vs_k started {datetime.now().isoformat()}\n")
+    with open_benchmark_log(log_path, f"experiment1_runtime_vs_k started {datetime.now().isoformat()}") as log:
         for spec in systems:
             monomers, domains = load_system(spec["monomer_file"])
             n = len(monomers)
@@ -240,8 +266,7 @@ def experiment2_runtime_by_t() -> None:
     full_rows: list[dict] = []
 
     start_input_listener()
-    with log_path.open("w") as log:
-        log.write(f"experiment2_runtime_by_t started {datetime.now().isoformat()}\n")
+    with open_benchmark_log(log_path, f"experiment2_runtime_by_t started {datetime.now().isoformat()}") as log:
         for target in targets:
             family, size = target["family"], target["size"]
             path = monomer_path(family, size)
@@ -416,25 +441,46 @@ def plot_runtime_by_t(cover_csv: Path, full_csv: Path, out_dir: Path) -> None:
 
 def experiment3_equilibrium_recovery() -> None:
     out_dir = BENCH_DIR / "03_equilibrium_recovery"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    figs_dir = out_dir / "figures"
+    csv_dir = out_dir / "csv"
+    hb_dir = out_dir / "hilbert_basis"
+    coffee_dir = out_dir / "coffee"
+    for d in [figs_dir, csv_dir, hb_dir, coffee_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
     run_subprocess(["leakage_compute_all.py", "--n", "7"])
     run_subprocess(["leakage_coffee.py", "--n", "7"])
     run_subprocess(["plot_leakage_figures.py", "--n", "7"])
     run_subprocess(["dump_sorted_polymers.py", "--n", "7", "--top", "50"])
 
-    maybe_copy(Path(RESULTS_DIR) / "figures" / "figure5_leakage_t3.png", out_dir / "equilibrium_relative_error_t3.png")
-    maybe_copy(Path(RESULTS_DIR) / "figures" / "figure6_leakage_t5.png", out_dir / "equilibrium_relative_error_t5.png")
+    maybe_copy(Path(RESULTS_DIR) / "figures" / "figure5_leakage_t3.png", figs_dir / "equilibrium_relative_error_t3.png")
+    maybe_copy(Path(RESULTS_DIR) / "figures" / "figure6_leakage_t5.png", figs_dir / "equilibrium_relative_error_t5.png")
 
-    # A compact recovery CSV from the plotted COFFEE directories.
+    leakage_hb = Path(HILBERT_BASIS_DIR)
+    for name in [
+        "hilbert_k25_t3_monomer_n7_incomplete.txt",
+        "hilbert_k25_t5_monomer_n7_incomplete.txt",
+        "hilbert_full_p_star_n7_incomplete.txt",
+    ]:
+        maybe_copy(leakage_hb / name, hb_dir / name)
+
     rows = []
-    base = Path(RESULTS_DIR) / "leakage" / "coffee" / "n7_incomplete"
+    base = Path(COFFEE_RESULTS_DIR) / "n7_incomplete"
     if base.exists():
-        # The detailed per-polymer relative-error CSV is intentionally left to
-        # the plots; this summary records where the raw data live.
         for tag in ["full_pstar", "k25_t3", "k25_t5"]:
             d = base / tag
-            rows.append(dict(set=tag, coffee_dir=str(d), coffee_output=str(d / "coffee_output.txt"), sorted_csv=str(d / "coffee_output_sorted.csv")))
-        write_csv(out_dir / "equilibrium_outputs.csv", rows, ["set", "coffee_dir", "coffee_output", "sorted_csv"])
+            tag_out = coffee_dir / tag
+            for name in ["input.ocx", "input.con", "domain_energies.txt", "coffee_output.txt", "coffee_output_sorted.csv", "polymers_sorted.csv", "polymers_sorted_top50.txt"]:
+                maybe_copy(d / name, tag_out / name)
+            rows.append(dict(
+                set=tag,
+                coffee_dir=str(tag_out),
+                coffee_output=str(tag_out / "coffee_output.txt"),
+                sorted_csv=str(tag_out / "coffee_output_sorted.csv"),
+                polymers_sorted=str(tag_out / "polymers_sorted.csv"),
+            ))
+        maybe_copy(base / "monomer_names.txt", coffee_dir / "monomer_names.txt")
+        write_csv(csv_dir / "equilibrium_outputs.csv", rows, ["set", "coffee_dir", "coffee_output", "sorted_csv", "polymers_sorted"])
 
 
 # ---------------------------------------------------------------------------
@@ -443,23 +489,35 @@ def experiment3_equilibrium_recovery() -> None:
 
 def experiment4_leakage() -> None:
     out_dir = BENCH_DIR / "04_leakage"
-    out_dir.mkdir(parents=True, exist_ok=True)
+    removed_dir = out_dir / "removed_inputs"
+    vary_t_dir = out_dir / "vary_t"
+    csv_dir = out_dir / "csv"
+    for d in [removed_dir, vary_t_dir, csv_dir]:
+        d.mkdir(parents=True, exist_ok=True)
 
     # 4.1 removed-input sweep K=1..7
     run_subprocess(["leakage_experiment_inputs.py", "--n", "7", "--K-values", "1", "2", "3", "4", "5", "6", "7"])
     src1 = Path(RESULTS_DIR) / "leakage" / "analysis" / "vary_removed_inputs" / "n7_systems_compare"
-    maybe_copy(src1 / "summary.json", out_dir / "removed_inputs_summary.json")
-    maybe_copy(src1 / "figure_leakage_vs_K.png", out_dir / "leakage_vs_removed_inputs.png")
+    maybe_copy(src1 / "summary.json", removed_dir / "summary.json")
+    maybe_copy(src1 / "figure_leakage_vs_K.png", removed_dir / "leakage_vs_removed_inputs.png")
+    for f in src1.glob("K*/polymers_sorted.csv"):
+        maybe_copy(f, removed_dir / f.parent.name / "polymers_sorted.csv")
+    for f in src1.glob("K*/polymer_compare.csv"):
+        maybe_copy(f, removed_dir / f.parent.name / "polymer_compare.csv")
 
     # 4.2 t sweep for K=1 incomplete cascade
     run_subprocess(["leakage_experiment_t.py", "--n", "7"])
     src2 = Path(RESULTS_DIR) / "leakage" / "analysis" / "vary_t" / "n7_incomplete"
-    maybe_copy(src2 / "summary.json", out_dir / "vary_t_summary.json")
-    maybe_copy(src2 / "figure_leakage_vs_t.png", out_dir / "leakage_vs_t.png")
+    maybe_copy(src2 / "summary.json", vary_t_dir / "summary.json")
+    maybe_copy(src2 / "figure_leakage_vs_t.png", vary_t_dir / "leakage_vs_t.png")
+    for f in src2.glob("polymer_compare*.csv"):
+        maybe_copy(f, vary_t_dir / f.name)
 
     run_subprocess(["export_csv.py"])
-    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_K.csv", out_dir / "leakage_vs_removed_inputs.csv")
-    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_t.csv", out_dir / "leakage_vs_t.csv")
+    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_K.csv", csv_dir / "leakage_vs_removed_inputs.csv")
+    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_t.csv", csv_dir / "leakage_vs_t.csv")
+    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_K_per_polymer.csv", csv_dir / "leakage_vs_removed_inputs_per_polymer.csv")
+    maybe_copy(Path(RESULTS_DIR) / "csv" / "leakage_vs_t_per_polymer.csv", csv_dir / "leakage_vs_t_per_polymer.csv")
 
 
 # ---------------------------------------------------------------------------
@@ -473,8 +531,11 @@ def main() -> None:
         choices=["1", "2", "3", "4", "runtime-vs-k", "runtime-by-t", "equilibrium", "leakage", "all"],
         help="Experiments to run. Default: 1 2 3 4.",
     )
+    parser.add_argument("--logs", action="store_true", help="Write verbose benchmark/pipeline logs. Default: no verbose log files.")
     args = parser.parse_args()
 
+    global ENABLE_LOGS
+    ENABLE_LOGS = args.logs
     ensure_dirs()
     selected = set(args.experiments)
     if "all" in selected:

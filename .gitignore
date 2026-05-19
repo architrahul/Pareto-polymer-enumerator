@@ -12,11 +12,6 @@ src/Normaliz/
 # Normaliz intermediate files (generated each run, in whichever cwd Python is in)
 **/eqs.in
 **/eqs.out
-**/eqs.gen
-**/eqs.inv
-**/eqs.cst
-**/eqs.typ
-**/eqs.egn
 **/tmp_monomers.txt
 **/vectors.txt
 
@@ -28,3 +23,5 @@ AGENTS.md
 
 covering_design_validation/
 reference papers/
+
+src/.normaliz_tmp
