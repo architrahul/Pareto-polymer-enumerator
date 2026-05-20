@@ -174,7 +174,7 @@ python hilbert_pipeline.py \
   --save
 ```
 
-This probes candidate block sizes `k`, chooses the best projected runtime, runs the covering-design enumeration, and saves polymer vectors under `results/hilbert_output/`. The probe step downloads covering designs from the La Jolla Covering Repository when available, so internet access is recommended.
+This probes candidate block sizes `k`, chooses the best projected runtime, runs the covering-design enumeration, and saves polymer vectors under `results/hilbert_output/`. The probe step downloads covering designs from the La Jolla Covering Repository when available, so internet access is needed.
 
 ### Flags
 

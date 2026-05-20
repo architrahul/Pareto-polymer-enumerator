@@ -15,8 +15,7 @@ src/Normaliz/
 **/tmp_monomers.txt
 **/vectors.txt
 
-results/
-backup_results/
+results.zip
 
 AGENTS.md
 .claude/
