@@ -240,14 +240,12 @@ def main():
                                            initial_conc=DEFAULT_INITIAL_CONC)
         print(f"  expected polymer set: {len(expected)} polymers")
 
-        # 4) COFFEE on full P*. Keep this experiment's COFFEE outputs separate
-        # from the paper Figure 5/6 COFFEE outputs: those zero all input-signal
-        # monomers, whereas here the removed inputs are absent from the monomer
-        # file and every surviving monomer stays at 1 µM.
+        # 4) COFFEE on full P*. Use the canonical shared cache
+        # results/common/coffee/{system}/full_pstar so K=1 can reuse the
+        # experiment-3 Full P* COFFEE run exactly.
         sys_out_dir = os.path.join(out_root, f"K{K}")
         os.makedirs(sys_out_dir, exist_ok=True)
-        shared_cof = os.path.join(LEAKAGE_COFFEE_DIR, "vary_removed_inputs",
-                                  sys_label, "full_pstar",
+        shared_cof = os.path.join(LEAKAGE_COFFEE_DIR, sys_label, "full_pstar",
                                   "coffee_output.txt")
         if os.path.exists(shared_cof):
             cof_dir = os.path.dirname(shared_cof)
@@ -256,8 +254,7 @@ def main():
             cof = shared_cof
             print(f"    COFFEE cached at {cof}")
         else:
-            cof_dir = os.path.join(LEAKAGE_COFFEE_DIR, "vary_removed_inputs",
-                                   sys_label, "full_pstar")
+            cof_dir = os.path.join(LEAKAGE_COFFEE_DIR, sys_label, "full_pstar")
             os.makedirs(cof_dir, exist_ok=True)
             ocx = os.path.join(cof_dir, "input.ocx")
             con = os.path.join(cof_dir, "input.con")

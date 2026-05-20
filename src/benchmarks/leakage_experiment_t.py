@@ -257,13 +257,10 @@ def main():
             LEAKAGE_HB_DIR, f"hilbert_k{K_FIXED}_t{t}_monomer_{label}.txt"
         )
 
-    # 4) Build COFFEE inputs + run COFFEE for each set.
-    # Keep this experiment's COFFEE outputs separate from the paper Figure 5/6
-    # COFFEE outputs. The paper leakage_coffee.py run zeros all input-signal
-    # monomers in the .con file; this experiment removes x1 from the monomer
-    # file and leaves all surviving inputs at 1 µM. Reusing the paper outputs
-    # would silently give the wrong K=1/t comparisons.
-    shared_coffee_base = os.path.join(LEAKAGE_COFFEE_DIR, "vary_t", label)
+    # 4) Build COFFEE inputs + run COFFEE for each set. Reuse the canonical
+    # shared cache results/common/coffee/{system}/{polymer_set}/ so experiment
+    # 3 and experiment 4 do not recompute identical COFFEE analyses.
+    shared_coffee_base = os.path.join(LEAKAGE_COFFEE_DIR, label)
     os.makedirs(shared_coffee_base, exist_ok=True)
     coffee_results = {}
 

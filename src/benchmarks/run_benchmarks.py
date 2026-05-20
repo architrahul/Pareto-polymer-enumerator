@@ -152,7 +152,7 @@ def run_subprocess(args: list[str]) -> None:
     if ENABLE_LOGS and args and args[0] in {"leakage_compute_all.py", "leakage_experiment_t.py", "leakage_analysis.py"}:
         args.append("--logs")
     print("$", " ".join(args))
-    subprocess.run([sys.executable] + args, cwd=SCRIPT_DIR, check=True)
+    subprocess.run([sys.executable, "-u"] + args, cwd=SCRIPT_DIR, check=True)
 
 
 def maybe_copy(src: Path, dst: Path) -> None:
@@ -443,9 +443,7 @@ def experiment3_equilibrium_recovery() -> None:
     out_dir = BENCH_DIR / "03_equilibrium_recovery"
     figs_dir = out_dir / "figures"
     csv_dir = out_dir / "csv"
-    hb_dir = out_dir / "hilbert_basis"
-    coffee_dir = out_dir / "coffee"
-    for d in [figs_dir, csv_dir, hb_dir, coffee_dir]:
+    for d in [figs_dir, csv_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
     run_subprocess(["leakage_compute_all.py", "--n", "7"])
@@ -456,32 +454,30 @@ def experiment3_equilibrium_recovery() -> None:
     maybe_copy(Path(RESULTS_DIR) / "figures" / "figure5_leakage_t3.png", figs_dir / "equilibrium_relative_error_t3.png")
     maybe_copy(Path(RESULTS_DIR) / "figures" / "figure6_leakage_t5.png", figs_dir / "equilibrium_relative_error_t5.png")
 
-    leakage_hb = Path(HILBERT_BASIS_DIR)
-    for name in [
-        "hilbert_k25_t3_monomer_n7_incomplete.txt",
-        "hilbert_k25_t5_monomer_n7_incomplete.txt",
-        "hilbert_full_p_star_n7_incomplete.txt",
-    ]:
-        maybe_copy(leakage_hb / name, hb_dir / name)
-
+    # Keep large reusable files only in results/common/. This experiment folder
+    # stores a compact index pointing to the shared Hilbert bases and COFFEE
+    # outputs instead of copying hundreds of MB into a second location.
+    hb_base = Path(HILBERT_BASIS_DIR)
+    coffee_base = Path(COFFEE_RESULTS_DIR) / "n7_incomplete"
     rows = []
-    base = Path(COFFEE_RESULTS_DIR) / "n7_incomplete"
-    if base.exists():
-        for tag in ["full_pstar", "k25_t3", "k25_t5"]:
-            d = base / tag
-            tag_out = coffee_dir / tag
-            for name in ["input.ocx", "input.con", "domain_energies.txt", "coffee_output.txt", "coffee_output_sorted.csv", "polymers_sorted.csv", "polymers_sorted_top50.txt"]:
-                maybe_copy(d / name, tag_out / name)
-            rows.append(dict(
-                set=tag,
-                coffee_dir=str(tag_out),
-                coffee_output=str(tag_out / "coffee_output.txt"),
-                sorted_csv=str(tag_out / "coffee_output_sorted.csv"),
-                polymers_sorted=str(tag_out / "polymers_sorted.csv"),
-            ))
-        maybe_copy(base / "monomer_names.txt", coffee_dir / "monomer_names.txt")
-        write_csv(csv_dir / "equilibrium_outputs.csv", rows, ["set", "coffee_dir", "coffee_output", "sorted_csv", "polymers_sorted"])
-
+    for tag, hb_name in [
+        ("full_pstar", "hilbert_full_p_star_n7_incomplete.txt"),
+        ("k25_t3", "hilbert_k25_t3_monomer_n7_incomplete.txt"),
+        ("k25_t5", "hilbert_k25_t5_monomer_n7_incomplete.txt"),
+    ]:
+        d = coffee_base / tag
+        rows.append(dict(
+            set=tag,
+            shared_hilbert_basis=str(hb_base / hb_name),
+            shared_coffee_dir=str(d),
+            coffee_output=str(d / "coffee_output.txt"),
+            sorted_csv=str(d / "coffee_output_sorted.csv"),
+            polymers_sorted=str(d / "polymers_sorted.csv"),
+        ))
+    write_csv(csv_dir / "equilibrium_outputs.csv", rows, [
+        "set", "shared_hilbert_basis", "shared_coffee_dir",
+        "coffee_output", "sorted_csv", "polymers_sorted",
+    ])
 
 # ---------------------------------------------------------------------------
 # Experiment 4 — leakage analysis
