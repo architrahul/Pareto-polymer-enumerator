@@ -1,4 +1,4 @@
-# Hilbert Basis Algorithm
+# Pareto polymer enumerator
 
 Code for *Scalable Enumeration of Pareto-optimal Polymers for Computing Equilibrium Concentrations*.
 
@@ -379,7 +379,7 @@ The four experiments are:
 1. **Runtime vs k** for `linear_cascade_n7` and `damien_n10`. Cascade-7 uses the DP covering fallback and, after `k=25`, tests `k` in increments of 5.
 2. **Runtime vs t** for linear cascades `m=5..9`, binary trees `d=3,4`, and DNA cascades `m=4..7`. For each `(system,t)`, the script probes `k`, records the probe time, runs the best covering enumeration only if the projected time is below 30 minutes, and also runs the Full-HB baseline.
 3. **Equilibrium recovery** for cascade-7 with the first input removed: full P* versus `t=3` and `t=5` at `k=25`, using COFFEE at `1 µM` initial concentration and `-20` binding energy.
-4. **Leakage analysis**: first compare removed inputs `K=1..7`, then compare leakage for different `t` values against full P*. Only polymers above `1 nM` are counted in leakage summaries.
+4. **Leakage analysis**: first compare systems where exactly one input is removed (`x1`, `x2`, …, `x7`), then compare leakage for different `t` values against full P*. Leakage summaries include all expected and unexpected candidate polymers; no concentration cutoff is applied.
 
 Outputs are written to:
 

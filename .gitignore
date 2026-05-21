@@ -16,6 +16,8 @@ src/Normaliz/
 **/vectors.txt
 
 results.zip
+results/
+backup_results/
 
 AGENTS.md
 .claude/

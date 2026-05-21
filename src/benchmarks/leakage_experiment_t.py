@@ -65,11 +65,9 @@ COFFEE_CLI = os.path.join(REPO_ROOT, "coffee", "crates", "coffee-cli",
 T_VALUES   = [3, 4, 5, 6, 7]   # t=8 skipped — covering compute takes ~25 min
 K_FIXED    = 25
 
-# Below this equilibrium-concentration cutoff we treat a polymer as
-# "negligibly present". Comparisons and dump files use only polymers above
-# this threshold; expected polymers whose actual conc drops below it count
-# as "absent" for the recovered/missing tally.
-SIGNIFICANCE_CUTOFF = 1e-9   # 1 nM, given 1 µM initial monomer conc
+# No concentration cutoff for leakage totals: every expected and unexpected
+# candidate polymer contributes to the concentration-error metrics.
+SIGNIFICANCE_CUTOFF = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +136,8 @@ def _compare(polymers, concs, expected_polys, initial_conc):
 def _aggregate_metrics(rows, expected_polys, cutoff=SIGNIFICANCE_CUTOFF):
     """Aggregate leakage metrics across a single polymer set's equilibrium.
 
-    Only polymers with actual concentration >= `cutoff` contribute. Expected
-    polymers whose actual concentration is below the cutoff are treated as
-    absent (full deficit, counted as missing).
+    Polymers with actual concentration >= `cutoff` contribute. In the current
+    leakage experiment cutoff=0, so all candidate polymers contribute.
 
     Returns:
       cutoff:                 the threshold used
@@ -296,9 +293,8 @@ def main():
         coffee_results[tag] = (polymers, concs)
 
     # 5) Per-polymer leakage tables. Compared against the constructed expected
-    # set (no COFFEE needed for the expected reference). Both metrics and the
-    # per-polymer CSV dump are filtered by the SIGNIFICANCE_CUTOFF: polymers
-    # with conc < cutoff are negligible and excluded from the leakage view.
+    # set (no COFFEE needed for the expected reference). Leakage totals use no
+    # concentration cutoff: every expected and unexpected candidate contributes.
     summary = {"generated": datetime.now().isoformat(),
                "n_expected_polymers": len(expected),
                "significance_cutoff_M": SIGNIFICANCE_CUTOFF,
@@ -307,9 +303,7 @@ def main():
         rows = _compare(polymers, concs, expected, DEFAULT_INITIAL_CONC)
         rows.sort(key=lambda r: -r["conc"])
 
-        # CSV: only polymers above cutoff (plus all expected polymers, marked
-        # as below-cutoff if applicable, so users can see which expected ones
-        # got suppressed).
+        # CSV: include all candidate polymers (cutoff=0), plus expected labels.
         csv_path = os.path.join(out_dir, f"polymer_compare_{tag}.csv")
         with open(csv_path, "w", newline="") as f:
             w = csv.writer(f)
@@ -320,8 +314,7 @@ def main():
             rank = 0
             for r in rows:
                 above = r["conc"] >= SIGNIFICANCE_CUTOFF
-                # Skip sub-cutoff UNEXPECTED polymers (the vast majority);
-                # always show expected polymers (above or below) for visibility.
+                # With cutoff=0, all candidate polymers are included.
                 if not above and not r["is_expected"]:
                     continue
                 nz = " ".join(str(j) for j, v in enumerate(r["vector"]) if v)

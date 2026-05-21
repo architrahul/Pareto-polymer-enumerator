@@ -174,7 +174,7 @@ def leakage_vs_K():
     for K_str, rec in summary.get("by_K", {}).items():
         agg = rec.get("aggregate", {})
         agg_rows.append(dict(
-            K_inputs_removed=int(K_str),
+            removed_input_index=int(K_str),
             system_label=rec.get("system_label"),
             n_monomers=rec.get("n_monomers"),
             n_expected=rec.get("n_expected"),
@@ -189,7 +189,7 @@ def leakage_vs_K():
             n_unexpected_below_cutoff=agg.get("n_unexpected_below"),
         ))
     _write(agg_rows, "leakage_vs_K.csv",
-           ["K_inputs_removed", "system_label", "n_monomers",
+           ["removed_input_index", "system_label", "n_monomers",
             "n_expected", "n_full_pstar", "cutoff_M",
             "total_unexpected_conc_M", "total_expected_deficit_M",
             "total_abs_deviation_M",
@@ -206,11 +206,11 @@ def leakage_vs_K():
         with open(f) as fh:
             r = csv.DictReader(fh)
             for row in r:
-                row["K_inputs_removed"] = K
+                row["removed_input_index"] = K
                 long_rows.append(row)
     if long_rows:
-        cols = ["K_inputs_removed"] + [c for c in long_rows[0]
-                                       if c != "K_inputs_removed"]
+        cols = ["removed_input_index"] + [c for c in long_rows[0]
+                                       if c != "removed_input_index"]
         _write(long_rows, "leakage_vs_K_per_polymer.csv", cols)
 
 

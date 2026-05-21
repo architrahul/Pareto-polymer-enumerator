@@ -492,7 +492,7 @@ def experiment4_leakage() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
     # 4.1 removed-input sweep K=1..7
-    run_subprocess(["leakage_experiment_inputs.py", "--n", "7", "--K-values", "1", "2", "3", "4", "5", "6", "7"])
+    run_subprocess(["leakage_experiment_inputs.py", "--n", "7", "--K-values", "1", "3", "4", "5", "6", "7", "8"])
     src1 = Path(RESULTS_DIR) / "leakage" / "analysis" / "vary_removed_inputs" / "n7_systems_compare"
     maybe_copy(src1 / "summary.json", removed_dir / "summary.json")
     maybe_copy(src1 / "figure_leakage_vs_K.png", removed_dir / "leakage_vs_removed_inputs.png")

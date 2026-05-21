@@ -1,11 +1,11 @@
 """
 leakage_experiment_inputs.py — EXPERIMENT 2.
 
-Compare actual leakage across cascade-N variants where the first K inputs
-are removed, for K = 1, ..., N. For each variant we compute the full
-Hilbert basis P* (no covering), run COFFEE under the leakage scenario,
-and compare per-polymer equilibrium concentrations against the
-user-specified "expected" polymer set (see expected_polymers.py).
+Compare actual leakage across cascade-N variants where exactly one input is
+removed. Case K removes only input x_K, for K = 1, ..., N. For each variant
+we compute the full Hilbert basis P* (no covering), run COFFEE under the
+leakage scenario, and compare per-polymer equilibrium concentrations against
+the expected polymer set (see expected_polymers.py).
 
 Outputs:
   results/benchmarks/04_leakage/removed_inputs/
@@ -61,14 +61,16 @@ from paths import (
 from expected_polymers import (
     DEFAULT_INITIAL_CONC,
     build_expected_polymers,
-    generate_incomplete_cascade,
+    generate_single_input_removed_cascade,
 )
 
 COFFEE_CLI = os.path.join(REPO_ROOT, "coffee", "crates", "coffee-cli",
                           "target", "release", "coffee-cli")
-K_VALUES = None  # by default, use 1..n for the requested cascade depth
+K_VALUES = None  # by default, test x1 and x3..x(n+1); x2 is structurally redundant with x1
 
-SIGNIFICANCE_CUTOFF = 1e-9   # 1 nM (1 µM initial monomer conc)
+# For leakage totals, include every expected and unexpected polymer candidate;
+# do not hide sub-1 nM terms behind a cutoff.
+SIGNIFICANCE_CUTOFF = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -200,13 +202,13 @@ def main():
                         help="Cascade depth. Default 7.")
     parser.add_argument("--K-values", nargs="+", type=int, default=K_VALUES,
                         dest="k_values",
-                        help="Inputs-removed counts. Default: 1..n.")
+                        help="Input indices to remove one-at-a-time. Default: 1,3,4,...,n+1 (x2 is skipped).")
     parser.add_argument("--top", type=int, default=50,
                         help="Top-N polymers in the sorted dump. Default 50.")
     args = parser.parse_args()
 
     n        = args.cascade_n
-    k_values = args.k_values or list(range(1, n + 1))
+    k_values = args.k_values or ([1] + list(range(3, n + 2)))
     out_root = os.path.join(LEAKAGE_VARY_INPUTS_DIR,
                             f"n{n}_systems_compare")
     os.makedirs(out_root, exist_ok=True)
@@ -214,18 +216,19 @@ def main():
     summary = {"generated": datetime.now().isoformat(), "by_K": {}}
 
     for K in k_values:
-        sys_label = f"n{n}_incomplete{K}" if K > 1 else f"n{n}_incomplete"
-        print(f"\n{'='*70}\n  System: cascade-{n}, first {K} input(s) removed "
+        if K < 1 or K > n + 1:
+            raise ValueError(f"input index must be in [1, {n + 1}], got {K}")
+        sys_label = f"n{n}_missing_input{K}" if K > 1 else f"n{n}_incomplete"
+        print(f"\n{'='*70}\n  System: cascade-{n}, only input x{K} removed "
               f"-> {sys_label}\n{'='*70}")
 
         # 1) Monomer file
-        monomer_path = generate_incomplete_cascade(n, K)
+        monomer_path = generate_single_input_removed_cascade(n, K)
         monomers      = parse_monomers(monomer_path)
         n_monomers    = len(monomers)
         domain_energy = assign_domain_energies(monomers, seed=42)
-        # The first K inputs are removed from the monomer file entirely; the
-        # surviving inputs x_{K+1}..x_{n+1} are kept at the initial 1 µM
-        # concentration. We do NOT zero them in COFFEE.
+        # Exactly one input x_K is removed from the monomer file entirely; all
+        # surviving monomers are kept at the initial 1 µM concentration.
         print(f"  |M|={n_monomers}  (all monomers at 1 µM)")
 
         # 2) Full HB
@@ -236,7 +239,7 @@ def main():
             continue
 
         # 3) Expected polymer set
-        expected = build_expected_polymers(n, removed_inputs=K,
+        expected = build_expected_polymers(n, removed_input=K,
                                            initial_conc=DEFAULT_INITIAL_CONC)
         print(f"  expected polymer set: {len(expected)} polymers")
 
@@ -303,13 +306,12 @@ def main():
         # Human-readable: every polymer above the cutoff (any count)
         top_path = os.path.join(
             sys_out_dir,
-            f"polymers_above_{SIGNIFICANCE_CUTOFF:.0e}.txt",
+            "polymers_all_concentrations.txt",
         )
         rows_above = [r for r in rows if r["conc"] >= SIGNIFICANCE_CUTOFF]
         with open(top_path, "w") as f:
-            f.write(f"# Polymers with equilibrium conc >= "
-                    f"{SIGNIFICANCE_CUTOFF:g} M  "
-                    f"(cascade-{n}, {K} input(s) removed)\n")
+            f.write(f"# Polymers included in leakage totals (no concentration cutoff)  "
+                    f"(cascade-{n}, only input x{K} removed)\n")
             f.write(f"# total polymers in P*: {len(rows)}\n")
             f.write(f"# above cutoff: {len(rows_above)}\n")
             f.write(f"# expected polymer set size: {len(expected)}\n\n")
@@ -324,6 +326,7 @@ def main():
 
         agg = _aggregate(rows, expected)
         summary["by_K"][K] = {
+            "removed_input_index": K,
             "system_label":      sys_label,
             "n_monomers":        n_monomers,
             "n_expected":        len(expected),
@@ -358,11 +361,11 @@ def _plot_summary(summary, out_dir):
                edgecolor="black", linewidth=0.3)
 
     ax.set_xticks(x)
-    ax.set_xticklabels([f"K={k}" for k in Ks])
+    ax.set_xticklabels([f"x{k}" for k in Ks])
     ax.set_yscale("log")
     ax.set_ylabel("concentration (M) — log")
-    ax.set_xlabel("number of first inputs removed")
-    ax.set_title("Actual leakage (full P*) across cascade systems")
+    ax.set_xlabel("removed input")
+    ax.set_title("Actual leakage (full P*) by single removed input")
     ax.legend(loc="best", fontsize=9)
     ax.grid(True, which="both", axis="y", linestyle=":", alpha=0.4)
     fig.tight_layout()
